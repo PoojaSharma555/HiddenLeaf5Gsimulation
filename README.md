@@ -271,3 +271,27 @@ Eight antennas do not automatically require eight independent messages, and two 
 - [MathWorks SNR conversion](https://www.mathworks.com/help/comm/ref/convertsnr.html): distinction between per-subcarrier and sample SNR.
 
 Next: build intuition for ULA phase progression, array factors, main lobes, sidelobes, and nulls; then connect precoding and combining to these payloads and inspect desired-signal power, inter-user interference, and noise separately.
+
+## Animate the processing blocks
+
+```bash
+python animate.py
+```
+
+This opens a native Tkinter window and automatically plays all 16 processing blocks for both users side by side. It regenerates the actual simulation outputs using the requested seed and SNR, then replays those values slowly enough to inspect. The roughly 54 µs physical frame is not played at physical speed.
+
+- **Play/Pause**, **Previous**, **Next**, and **Restart** control playback.
+- Choose any block from the dropdown, then use the progress slider to inspect it.
+- Choose **0.5×, 1×, 2×, or 4×** playback speed.
+- Choose OFDM symbol **0, 1, or 2** for IFFT, CP, CP removal, and FFT views.
+- Blue waveform traces show I and orange traces show Q. The last displayed sample is printed as I+jQ.
+- IFFT synthesis adds the actual subcarrier contributions and compares the partial sum with the final waveform. Other stages progressively reveal the actual saved block results.
+- Space toggles playback; left/right arrows change blocks. The animation stops after the final message.
+
+```bash
+python animate.py --paused
+python animate.py --snr-db 5 --output results_5db
+python animate.py --check
+```
+
+`--check` verifies the animation's Fourier synthesis without opening a window. Tkinter is part of many Python distributions; if it is missing, use a Python distribution with Tcl/Tk support (on Linux the operating-system package is commonly named `python3-tk`). NumPy remains the only pip dependency. A graphical desktop is required for the window. This animation covers the independent baseband chains; it does not depict radiation or beamforming yet.
