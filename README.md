@@ -1,3 +1,11 @@
+# Current version: configurable MU-MIMO animation
+
+Run `python animate.py --paused`. Use **Reference SNR**, **Apply SNR / precoder**, **Receiver view**, and **Channels & beams**. The animation now applies two configurable 2×8 channels and an 8×2 digital precoder. Your supplied matrix is the default H1. Read [MIMO_GUIDE.md](MIMO_GUIDE.md) for the current equations, controls, power conventions, and limitations.
+
+The material below documents the original independent-AWGN baseline, which remains available through `python simulate.py` without `--config`. It does not describe the new animation's applied MIMO receiver. Every run regenerates results for the selected mode; check `summary.json` for the mode.
+
+---
+
 # Hidden Leaf 5G simulation — phase 1
 
 A Python learning project that follows two messages through an uncoded QPSK/OFDM baseband transmitter and receiver. The intended destination is a downlink from an 8-element BS uniform linear array to two UEs with 2 receive elements each, one data layer per UE.

@@ -50,9 +50,11 @@ class AnimationTests(unittest.TestCase):
             for stage in range(len(STAGES)):
                 for progress in (0.,.5,1.):
                     app.stage,app.progress=stage,progress
-                    for u in (1,2):
-                        app.render_user(canvas,u)
-                        self.assertTrue(canvas.items)
+                    for view in ('Rx1','Rx2','Combined / equalized'):
+                        app.receiver=type('Selection',(),{'get':lambda self,v=view:v})()
+                        for u in (1,2):
+                            app.render_user(canvas,u)
+                            self.assertTrue(canvas.items)
 
 
 if __name__ == '__main__':

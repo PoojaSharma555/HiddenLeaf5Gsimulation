@@ -1,4 +1,4 @@
-"""Launch a native, interactive animation of the actual phase-1 simulation data.
+"""Launch a native animation of the configurable flat-fading MU-MIMO model.
 
 Run: python animate.py
 No matplotlib or browser required. Tkinter must be installed with Python.
@@ -19,12 +19,12 @@ STAGES = [
     ('Frequency grid', 'X[q, tone mod 128] = s[m]; unused bins = 0', 'Fill 72 allocated tones per OFDM symbol. Grey cells remain zero amplitude.'),
     ('IFFT synthesis', 'x[q,n] = Σₖ X[q,k] exp(j2πkn/128) / √128', 'Watch the active subcarriers add up. The final sum is the complex baseband waveform.'),
     ('Cyclic prefix', 'x_CP[q] = [x[q,118:128], x[q,0:128]]', 'Copy the final 10 useful samples to the beginning. Shading marks the copied prefix.'),
-    ('Serialize waveform', 'tx = concatenate(x_CP[0], x_CP[1], x_CP[2])', 'Three OFDM symbols become 414 complex samples on one time axis.'),
-    ('Generate AWGN', 'w = √(σ²/2) (z_I + jz_Q), σ² = 10^(−EsN0_dB/10)', 'Each user gets independent complex Gaussian receiver noise.'),
-    ('Received waveform', 'rx[n] = tx[n] + w[n]', 'The receiver observes the transmitted envelope plus noise. H1/H2 are not applied.'),
+    ('Serialize waveform', 'tx = concatenate(x_CP[0], x_CP[1], x_CP[2])', 'These are user-layer samples. The joint transmitter applies x_BS = W [s1,s2]ᵀ across eight antennas.'),
+    ('Generate AWGN', 'w = √(σ²/2) (z_I + jz_Q), σ² = 10^(−EsN0_dB/10)', 'Each of the two receive antennas gets independent noise. SNR is a reference; actual SINR includes channel gain.'),
+    ('Received waveform', 'y_u[n] = H_u W s[n] + n_u[n]', 'Eight BS antenna signals pass through H1/H2. Select Rx1, Rx2, or the combined/equalized output.'),
     ('Remove CP', 'rx_useful[q] = rx_blocks[q,10:138]', 'Discard the copied prefix before the FFT. Timing is assumed perfectly known.'),
     ('Receiver FFT', 'Y[q,k] = Σₙ rx_useful[q,n] exp(−j2πkn/128) / √128', 'The FFT separates the subcarriers. These are FFT results revealed in bin order.'),
-    ('Select allocated tones', 'allocated = Y[:, active_bins].reshape(−1)', 'Keep the 72 assigned bins, including unused payload positions that now contain noise.'),
+    ('Select allocated tones', 'allocated = Y[:, active_bins].reshape(−1)', 'After receive combining and desired-gain equalization, keep assigned bins, including noisy padding.'),
     ('Discard padding', 's_hat = allocated[:payload_symbol_count]', 'Keep 192 payload symbols for Naruto and 152 for Sasuke.'),
     ('Hard decisions', 'b_hat[2m] = Re(s_hat[m])<0; b_hat[2m+1] = Im(s_hat[m])<0', 'The signs of I and Q recover the two bits. Red cells mark actual bit errors.'),
     ('Recovered bytes', 'c_hat = packbits(b_hat), most significant bit first', 'Group each set of eight recovered bits into a byte.'),
@@ -34,13 +34,10 @@ BG, PANEL, INK, MUTED = '#101722', '#182333', '#e8eef7', '#aab9ca'
 BLUE, ORANGE, GREEN, RED = '#65baff', '#ffb569', '#83d6ac', '#ff7f8f'
 
 
-def prepare(output, snr_db=15., seed=555):
+def prepare(output, snr_db=15., seed=555, config=None):
     """Generate and load one consistent run, using the same processing as simulate.py."""
-    with contextlib.redirect_stdout(io.StringIO()):
-        report = run(snr_db, seed, output)
-    with np.load(output/'waveforms_and_channels.npz') as archive:
-        arrays = {key: archive[key].copy() for key in archive.files}
-    return report, arrays
+    from mimo import run_mimo
+    return run_mimo({**(config or {}), 'snr_db': snr_db}, seed, output)
 
 
 def partial_ifft(grid_row, count):
@@ -52,15 +49,16 @@ def partial_ifft(grid_row, count):
 
 
 class Animation:
-    def __init__(self, root, report, arrays, autoplay=True):
+    def __init__(self, root, report, arrays, autoplay=True, output=Path("results")):
         import tkinter as tk
         from tkinter import ttk
         self.tk, self.root, self.report, self.arrays = tk, root, report, arrays
+        self.output = output
         self.stage, self.progress, self.playing = 0, 0., autoplay
         self.last_time, self.seek_update, self.closed = time.monotonic(), False, False
         root.title('Hidden Leaf • OFDM signal journey')
-        root.geometry('1180x820')
-        root.minsize(940, 710)
+        root.geometry('1220x850')
+        root.minsize(1100, 800)
         root.configure(bg=BG)
         root.protocol('WM_DELETE_WINDOW', self.close)
         style = ttk.Style(root)
@@ -71,8 +69,10 @@ class Animation:
         top = ttk.Frame(root, padding=14)
         top.pack(fill='x')
         ttk.Label(top, text='HIDDEN LEAF  /  SIGNAL JOURNEY', font=('Helvetica', 18, 'bold')).pack(anchor='w')
-        ttk.Label(top, text=f'Two independent baseband chains • QPSK • 60 kHz SCS • {report["requested_snr_db"]:g} dB Es/N0', foreground=MUTED).pack(anchor='w', pady=4)
-        ttk.Label(top, text='Slowed educational replay of actual samples • 53.906 µs simulated frame • no spatial transmission yet', foreground=MUTED).pack(anchor='w')
+        ttk.Label(top, text=f'Joint MU-MIMO • 8 Tx / 2 Rx per user • QPSK • 60 kHz SCS', foreground=MUTED).pack(anchor='w', pady=4)
+        ttk.Label(top, text='Slowed replay • 53.906 µs frame • flat 2×8 channels • perfect CSI • digital precoding', foreground=MUTED).pack(anchor='w')
+        from beam_ui import install_controls
+        install_controls(self, top)
         controls = ttk.Frame(root, padding=(14, 0, 14, 8))
         controls.pack(fill='x')
         ttk.Button(controls, text='Restart', command=self.restart).pack(side='left', padx=(0, 6))
@@ -169,7 +169,7 @@ class Animation:
             kwargs['width'] = width
         c.create_text(x, y, text=text, **kwargs)
 
-    def waveform(self, c, data, count, xlabel, cp=False, reference=None):
+    def waveform(self, c, data, count, xlabel, cp=False, reference=None, discrete=False):
         w, h = c.winfo_width(), c.winfo_height()
         left, right, top, bottom = 62, w-24, 115, h-85
         limit = max(.15, float(np.max(np.abs(np.r_[data.real, data.imag])))*1.12)
@@ -195,7 +195,13 @@ class Animation:
                 c.create_line(*points, fill='#465165', dash=(3, 3))
         for values, color in [(data.real, BLUE), (data.imag, ORANGE)]:
             points = [p for i,v in enumerate(values[:count]) for p in (px(i), py(v))]
-            if len(points)>=4:
+            if discrete:
+                offset = -1.5 if color == BLUE else 1.5
+                for i,v in enumerate(values[:count]):
+                    x,y = px(i)+offset,py(v)
+                    c.create_line(x,py(0),x,y,fill=color,width=1)
+                    c.create_oval(x-2,y-2,x+2,y+2,fill=color,outline='')
+            elif len(points)>=4:
                 c.create_line(*points, fill=color, width=2)
         if count:
             z = data[min(count-1, len(data)-1)]
@@ -240,6 +246,8 @@ class Animation:
         self.text(c,20,16,f'UE{u}  /  '+('NARUTO' if u==1 else 'SASUKE'),GREEN,15)
         self.text(c,20,45,f'{row["bits"]} bits → {row["qpsk_symbols"]} QPSK symbols → 3 OFDM symbols',MUTED,11)
         stage = self.stage
+        view = self.receiver.get() if hasattr(self, 'receiver') else 'Combined / equalized'
+        antenna = {'Rx1':0, 'Rx2':1}.get(view)
         if stage in (0,14,15):
             data = a('bytes' if stage==0 else 'recovered_bytes')
             count = min(len(data),int(p*len(data)))
@@ -254,7 +262,7 @@ class Animation:
                 self.text(c,20,217,'\n'.join(shown),size=12)
             else:
                 self.text(c,20,200,f'Bit errors: {row["bit_errors"]}/{row["bits"]}\nBER: {row["ber"]:.6f}\nRMS EVM: {row["rms_evm_percent"]:.2f}%',size=19)
-                self.text(c,20,h-55,'Payload recovery only; no beamforming/channel propagation.',MUTED,11,width=w-40)
+                self.text(c,20,h-55,f'Applied {self.report["precoder_method"]} channel • SINR {row["full_load_sinr_db"]:.2f} dB',MUTED,11,width=w-40)
         elif stage in (1,13):
             data = a('bits' if stage==1 else 'recovered_bits')
             count = int(p*len(data))
@@ -295,17 +303,21 @@ class Animation:
             self.text(c,20,78,f'OFDM symbol {q} • {count}/72 tone contributions • dashed: final waveform',MUTED,11)
             self.waveform(c,data,NFFT,'Sample n within useful OFDM symbol',reference=a('ifft')[q])
         elif stage==10:
-            data=a('rx_grid')[q]
+            data=a('rx_grid')[q] if antenna is None else a('antenna_fft')[antenna,q]
             count=int(p*NFFT)
-            self.text(c,20,78,f'OFDM symbol {q} • {count}/128 FFT bins (unshifted order)',MUTED,11)
-            self.waveform(c,data,count,'FFT bin k (unshifted order)')
+            self.text(c,20,78,f'{view} • symbol {q} • {count}/128 discrete FFT bins',MUTED,11)
+            self.waveform(c,data,count,'FFT bin k (unshifted order)',discrete=True)
         else:
             key={5:'cp_blocks',6:'tx',7:'noise',8:'rx',9:'rx_no_cp'}[stage]
-            data=a(key)
+            if antenna is not None and stage in (7,8,9):
+                rawkey={7:'antenna_noise',8:'antenna_rx',9:'antenna_rx_no_cp'}[stage]
+                data=a(rawkey)[antenna]
+            else:
+                data=a(key)
             if data.ndim==2:
                 data=data[q]
             count=int(p*len(data))
-            self.text(c,20,78,f'{count}/{len(data)} complex samples'+(f' • OFDM symbol {q}' if stage in (5,9) else ''),MUTED,11)
+            self.text(c,20,78,f'{view if stage in (7,8,9) else "User layer"} • {count}/{len(data)} samples'+(f' • OFDM symbol {q}' if stage in (5,9) else ''),MUTED,11)
             self.waveform(c,data,count,'Time from start of displayed block (µs)',cp=stage==5)
 
     def render(self):
@@ -326,13 +338,17 @@ class Animation:
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--snr-db',type=float,default=15.)
+    parser.add_argument('--snr-db',type=float,default=None)
     parser.add_argument('--seed',type=int,default=555)
     parser.add_argument('--output',type=Path,default=Path(__file__).parent/'results')
     parser.add_argument('--paused',action='store_true',help='Open paused for manual stepping')
     parser.add_argument('--check',action='store_true',help='Verify data and Fourier synthesis without opening a GUI')
+    parser.add_argument('--config',type=Path,help='JSON file with H1, H2, snr_db and precoder')
     args=parser.parse_args()
-    report,arrays=prepare(args.output,args.snr_db,args.seed)
+    import json
+    config=json.loads(args.config.read_text()) if args.config else None
+    snr=args.snr_db if args.snr_db is not None else (config or {}).get('snr_db',15.)
+    report,arrays=prepare(args.output,snr,args.seed,config)
     if args.check:
         for u in (1,2):
             for q in range(3):
@@ -347,7 +363,7 @@ def main():
         root=tk.Tk()
     except tk.TclError:
         parser.exit(1,'Cannot open the Tk window in this environment. Run python animate.py from a graphical desktop terminal with a working Tcl/Tk installation. Use --check for numerical verification without a display.\n')
-    app=Animation(root,report,arrays,not args.paused)
+    app=Animation(root,report,arrays,not args.paused,args.output)
     root.mainloop()
 
 

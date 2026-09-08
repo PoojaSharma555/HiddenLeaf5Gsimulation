@@ -1,5 +1,5 @@
 {
-  "stage": "Independent baseband AWGN checks; H1/H2 preview is NOT applied",
+  "stage": "Joint 8-Tx / two 2-Rx users; applied flat channels, digital precoding and combining",
   "carrier_hz": 28000000000.0,
   "scs_hz": 60000.0,
   "fft_size": 128,
@@ -8,10 +8,9 @@
   "useful_symbol_us": 16.666666666666668,
   "cp_us": 1.3020833333333333,
   "frame_duration_us": 53.90625,
-  "snr_definition": "QPSK Es/N0 per occupied resource element before any spatial channel",
+  "snr_definition": "Reference per-layer Es / per-Rx-antenna noise variance; Es=1, total layer power=2. Actual post-combining SINR is reported separately.",
   "requested_snr_db": 15.0,
   "complex_noise_variance": 0.03162277660168379,
-  "shannon_awgn_bound_bits_per_s_hz": 5.0278076733505195,
   "seed": 555,
   "users": [
     {
@@ -25,8 +24,10 @@
       "recovered_text": "Hello you are Naruto. welcome to this simulation",
       "bit_errors": 0,
       "ber": 0.0,
-      "rms_evm_percent": 17.20844670981596,
-      "measured_es_n0_db": 15.285166574622458
+      "rms_evm_percent": 3.5456119931898025,
+      "measured_es_n0_db": null,
+      "evm_based_sinr_db": 29.006175845297083,
+      "full_load_sinr_db": 28.641898348749507
     },
     {
       "user": "UE2",
@@ -39,8 +40,60 @@
       "recovered_text": "Konnichiwa Sasuke, welcome to this sim",
       "bit_errors": 0,
       "ber": 0.0,
-      "rms_evm_percent": 17.434360808044406,
-      "measured_es_n0_db": 15.171879408694277
+      "rms_evm_percent": 5.0999171876971605,
+      "measured_es_n0_db": null,
+      "evm_based_sinr_db": 25.848737518112465,
+      "full_load_sinr_db": 25.777038155950656
     }
-  ]
+  ],
+  "channel_model": "User-configurable, static flat fading; same H on every tone. Perfect CSI.",
+  "precoder_method": "ZF",
+  "channel_config": {
+    "snr_db": 15.0,
+    "precoder": "ZF",
+    "H1": [
+      [
+        "(1+0i)",
+        "(2+0i)",
+        "1i",
+        "(1+0i)",
+        "(-1+0i)",
+        "-1i",
+        "-1i",
+        "1i"
+      ],
+      [
+        "(1+0i)",
+        "(2+0i)",
+        "(1+0i)",
+        "(2+0i)",
+        "1i",
+        "2i",
+        "1i",
+        "2i"
+      ]
+    ],
+    "H2": [
+      [
+        "(1+0i)",
+        "-1i",
+        "(-1+0i)",
+        "1i",
+        "(1+0i)",
+        "-1i",
+        "(-1+0i)",
+        "1i"
+      ],
+      [
+        "(0.7+0.2i)",
+        "(-0.2-0.7i)",
+        "(-0.7-0.2i)",
+        "(0.2+0.7i)",
+        "(0.7+0.2i)",
+        "(-0.2-0.7i)",
+        "(-0.7-0.2i)",
+        "(0.2+0.7i)"
+      ]
+    ]
+  }
 }

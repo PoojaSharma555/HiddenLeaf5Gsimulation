@@ -15,7 +15,10 @@ def write_block_outputs(output, report, arrays):
         handle.write('Indices start at zero. Complex numbers use j = sqrt(-1).\n')
         handle.write('I = real part; Q = imaginary part. Amplitudes are normalized.\n')
         handle.write('All array entries are printed; no truncated arrays.\n')
-        handle.write('Two independent AWGN loopbacks; MIMO channel previews are NOT applied.\n')
+        mimo = 'precoder_method' in report
+        handle.write(report['stage']+'\n')
+        if mimo:
+            handle.write('Blocks 5–7 show user layers; BS antenna waveforms are in the appendix. Blocks 8–13 show combined/equalized data; raw per-antenna arrays are also in the appendix.\n')
         handle.write(json.dumps({k:v for k,v in report.items() if k != 'users'}, indent=2)+'\n')
         for u, row in enumerate(report['users'], 1):
             prefix = f'ue{u}_'
@@ -35,9 +38,9 @@ def write_block_outputs(output, report, arrays):
             array_block(handle, 'BLOCK 7 — Serialized COMPLEX BASEBAND OFDM WAVEFORM',
                         'tx = x_CP.reshape(-1), OFDM symbol by OFDM symbol', arrays[prefix+'tx'])
             array_block(handle, 'BLOCK 8 — AWGN samples',
-                        'w = sqrt(noise_variance/2)*(z_I + j*z_Q)', arrays[prefix+'noise'])
+                        'combined_noise = c^H n / desired_gain; n_r = sqrt(noise_variance/2)*(z_I+j*z_Q)' if mimo else 'w = sqrt(noise_variance/2)*(z_I + j*z_Q)', arrays[prefix+'noise'])
             array_block(handle, 'BLOCK 9 — Received waveform',
-                        'rx = tx + w', arrays[prefix+'rx'])
+                        'rx = c^H (H W s + n) / desired_gain' if mimo else 'rx = tx + w', arrays[prefix+'rx'])
             array_block(handle, 'BLOCK 10 — Received samples after CP removal',
                         'rx_useful = rx.reshape(number_of_symbols,NFFT+NCP)[:,NCP:]', arrays[prefix+'rx_no_cp'])
             array_block(handle, 'BLOCK 11 — Full receiver FFT grid Y[q,k]',
@@ -72,6 +75,7 @@ def write_block_outputs(output, report, arrays):
                             t = (q*(nfft+ncp)+n+(0 if includes_cp else ncp))/fs
                             wave.write(f'{index}\t{q}\t{n}\t{t:.17g}\t{int(includes_cp and n<ncp)}\t'
                                        f'{z.real:.17g}\t{z.imag:.17g}\t{z.real:.17g}{z.imag:+.17g}j\n')
-        handle.write('\nAPPENDIX — SPARSE CHANNEL PREVIEW ONLY; NOT PART OF PAYLOAD LOOPBACK\n')
-        for name in ['active_bins','path_delays_s','path_gains','H1','H2','H_beamspace']:
-            array_block(handle, name, 'See README section 10 for geometric channel and DFT beamspace equations', arrays[name])
+        handle.write('\nAPPENDIX — APPLIED MIMO ARRAYS\n' if mimo else '\nAPPENDIX — SPARSE CHANNEL PREVIEW ONLY; NOT PART OF PAYLOAD LOOPBACK\n')
+        names = ['active_bins','H1','H2','precoder','combiners','effective_coupling','bs_antenna_tx'] + [f'ue{u}_{key}' for u in (1,2) for key in ('antenna_rx','antenna_noise','antenna_fft')] if mimo else ['active_bins','path_delays_s','path_gains','H1','H2','H_beamspace']
+        for name in names:
+            array_block(handle, name, 'See MIMO_GUIDE.md for applied MIMO equations' if mimo else 'See README section 10 for geometric channel and DFT beamspace equations', arrays[name])

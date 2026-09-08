@@ -71,13 +71,13 @@ def sparse_channels(rng):
     return channels, beamspace, np.array(gains), delays
 
 
-def svg_plot(path, original, received, wave, snr_db):
+def svg_plot(path, original, received, wave, snr_db, snr_label="Es/N0"):
     """Dependency-free, labeled diagnostic figure in SVG."""
     items = ['<svg xmlns="http://www.w3.org/2000/svg" width="980" height="460" viewBox="0 0 980 460">',
              '<rect width="980" height="460" fill="#fff"/>',
              '<g font-family="Arial" font-size="13" fill="#17212b">',
              '<text x="40" y="28" font-size="20">UE1: QPSK and complex baseband OFDM</text>',
-             f'<text x="95" y="57">Received QPSK symbols ({snr_db:g} dB Es/N0)</text>',
+             f'<text x="95" y="57">Received QPSK symbols ({snr_db:g} dB {snr_label})</text>',
              '<text x="540" y="57">First OFDM symbol, including cyclic prefix</text>']
     x0, y0, w, h = 65, 85, 345, 290
     items += [f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" fill="none" stroke="#77818b"/>']
@@ -182,5 +182,13 @@ if __name__ == '__main__':
     p.add_argument('--snr-db', type=float, default=15.)
     p.add_argument('--seed', type=int, default=555)
     p.add_argument('--output', type=Path, default=Path(__file__).parent/'results')
+    p.add_argument('--config', type=Path, help='Run the joint MIMO model using a channel JSON file')
     args = p.parse_args()
-    run(args.snr_db, args.seed, args.output)
+    if args.config:
+        from mimo import run_mimo
+        config = json.loads(args.config.read_text())
+        # Config controls SNR for this mode; use animate.py for interactive edits.
+        report, _ = run_mimo(config, args.seed, args.output)
+        print(json.dumps(report, indent=2))
+    else:
+        run(args.snr_db, args.seed, args.output)
