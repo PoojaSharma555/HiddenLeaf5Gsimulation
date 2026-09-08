@@ -25,6 +25,12 @@ python simulate.py --snr-db 5 --seed 555 --output results_5db
 The fixed seed makes the experiment reproducible. It does not imply that a real channel or receiver repeats the same noise.
 
 - `simulate.py`: source, with functions matching the stages below.
+- `block_output.py`: full block-by-block report and indexed waveform writer.
+- `results/output.txt`: generated complete output for all 16 blocks, separately for UE1 and UE2, with formulas, shapes, and untruncated arrays; channel previews follow in an appendix.
+- `results/ue1_ofdm_waveform.txt`, `results/ue2_ofdm_waveform.txt`: generated tables containing every complex OFDM sample before and after CP insertion. Columns give index, OFDM symbol, sample within block, time in seconds, CP flag, I, Q, and I+jQ. Each user has 384 samples before CP and 414 after CP. Time zero is the beginning of the first transmitted CP; useful-only samples retain their positions on that timeline.
+
+The full text reports and binary archive are generated locally on every run. The console prints the summary and output paths. Numeric text uses up to 17 significant digits, and the `.npz` archive stores the complex arrays directly. To print the full report in a terminal, run `cat results/output.txt`.
+
 - `results/summary.json`: counts, decoded messages, BER, EVM, and configuration.
 - `results/ue1_bits.txt`, `results/ue2_bits.txt`: every payload bit, in order.
 - `results/ue1_trace.json`, `results/ue2_trace.json`: byte encodings and every QPSK symbol, with its OFDM symbol and signed subcarrier index.

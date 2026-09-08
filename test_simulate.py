@@ -1,11 +1,37 @@
 """Mathematical checks independent of the short demonstration payload outcome."""
 import unittest
 import math
+import tempfile
+import contextlib
+import io
+from pathlib import Path
 import numpy as np
-from simulate import qpsk, decisions, text_bits, ofdm_tx, ofdm_rx, sparse_channels, NFFT, NCP, BINS
+from simulate import qpsk, decisions, text_bits, ofdm_tx, ofdm_rx, sparse_channels, run, NFFT, NCP, BINS
 
 
 class BasebandTests(unittest.TestCase):
+    def test_complete_block_reports_and_waveform_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(output=out)
+            report = (out/'output.txt').read_text()
+            self.assertNotIn('...', report)
+            for block in range(1, 17):
+                self.assertEqual(report.count(f'BLOCK {block} —'), 2)
+            with np.load(out/'waveforms_and_channels.npz') as data:
+                for u in (1, 2):
+                    lines = (out/f'ue{u}_ofdm_waveform.txt').read_text().splitlines()
+                    records = [line.split('\t') for line in lines if line and line[0].isdigit()]
+                    self.assertEqual(len(records), 384+414)
+                    before, after = records[:384], records[384:]
+                    for rows, key in [(before, 'ifft'), (after, 'tx')]:
+                        samples = np.array([complex(float(r[5]), float(r[6])) for r in rows])
+                        np.testing.assert_array_equal(samples, data[f'ue{u}_{key}'].ravel())
+                    self.assertEqual(sum(int(r[4]) for r in after), 30)
+                    np.testing.assert_allclose([float(r[3]) for r in after], np.arange(414)/7_680_000)
+                    np.testing.assert_allclose(data[f'ue{u}_rx'], data[f'ue{u}_tx']+data[f'ue{u}_noise'])
+
     def test_text_and_constellation(self):
         self.assertEqual(''.join(map(str, text_bits('H'))), '01001000')
         expected = np.array([1+1j, 1-1j, -1+1j, -1-1j])/np.sqrt(2)

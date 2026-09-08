@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import numpy as np
+from block_output import write_block_outputs
 
 MESSAGES = ('Hello you are Naruto. welcome to this simulation',
             'Konnichiwa Sasuke, welcome to this sim')
@@ -121,6 +122,9 @@ def run(snr_db=15., seed=555, output=Path('results')):
         grid, tx = ofdm_tx(s, n_symbols)
         noise = np.sqrt(noise_var/2)*(rng.normal(size=tx.size)+1j*rng.normal(size=tx.size))
         rx = tx + noise
+        cp_blocks = tx.reshape(n_symbols, NFFT + NCP)
+        rx_no_cp = rx.reshape(n_symbols, NFFT + NCP)[:, NCP:]
+        rx_grid = np.fft.fft(rx_no_cp, axis=1, norm='ortho')
         detected = ofdm_rx(rx)[:len(s)]
         rb = decisions(detected)[:len(b)]
         decoded = np.packbits(rb).tobytes().decode('utf-8', errors='replace')
@@ -133,7 +137,12 @@ def run(snr_db=15., seed=555, output=Path('results')):
                          rms_evm_percent=100*evm,
                          measured_es_n0_db=float(-20*np.log10(evm))))
         arrays.update({f'ue{u}_bits': b, f'ue{u}_qpsk': s, f'ue{u}_grid':grid,
-                       f'ue{u}_tx':tx, f'ue{u}_rx':rx, f'ue{u}_received_qpsk':detected})
+                       f'ue{u}_tx':tx, f'ue{u}_rx':rx, f'ue{u}_received_qpsk':detected,
+                       f'ue{u}_bytes':np.frombuffer(message.encode('utf-8'), dtype=np.uint8),
+                       f'ue{u}_ifft':cp_blocks[:, NCP:], f'ue{u}_cp_blocks':cp_blocks,
+                       f'ue{u}_noise':noise, f'ue{u}_rx_no_cp':rx_no_cp,
+                       f'ue{u}_rx_grid':rx_grid, f'ue{u}_rx_allocated':rx_grid[:, BINS].ravel(),
+                       f'ue{u}_recovered_bits':rb, f'ue{u}_recovered_bytes':np.packbits(rb)})
         (output/f'ue{u}_bits.txt').write_text(''.join(map(str, b.tolist()))+'\n')
         trace = dict(message=message,
                      bytes=[dict(index=i, decimal=int(v), binary=f'{v:08b}')
@@ -160,7 +169,11 @@ def run(snr_db=15., seed=555, output=Path('results')):
                   shannon_awgn_bound_bits_per_s_hz=float(np.log2(1+10**(snr_db/10))),
                   seed=seed, users=rows)
     (output/'summary.json').write_text(json.dumps(report, indent=2)+'\n')
+    write_block_outputs(output, report, arrays)
     print(json.dumps(report, indent=2))
+    print(f'Complete block outputs: {(output / "output.txt").resolve()}')
+    for u in (1, 2):
+        print(f'UE{u} complex OFDM samples: {(output / f"ue{u}_ofdm_waveform.txt").resolve()}')
     return report
 
 
