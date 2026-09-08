@@ -1,0 +1,46 @@
+{
+  "stage": "Independent baseband AWGN checks; H1/H2 preview is NOT applied",
+  "carrier_hz": 28000000000.0,
+  "scs_hz": 60000.0,
+  "fft_size": 128,
+  "cp_samples": 10,
+  "sample_rate_hz": 7680000.0,
+  "useful_symbol_us": 16.666666666666668,
+  "cp_us": 1.3020833333333333,
+  "frame_duration_us": 53.90625,
+  "snr_definition": "QPSK Es/N0 per occupied resource element before any spatial channel",
+  "requested_snr_db": 15.0,
+  "complex_noise_variance": 0.03162277660168379,
+  "shannon_awgn_bound_bits_per_s_hz": 5.0278076733505195,
+  "seed": 555,
+  "users": [
+    {
+      "user": "UE1",
+      "message": "Hello you are Naruto. welcome to this simulation",
+      "bytes": 48,
+      "bits": 384,
+      "qpsk_symbols": 192,
+      "ofdm_symbols": 3,
+      "zero_padding_resource_elements": 24,
+      "recovered_text": "Hello you are Naruto. welcome to this simulation",
+      "bit_errors": 0,
+      "ber": 0.0,
+      "rms_evm_percent": 17.20844670981596,
+      "measured_es_n0_db": 15.285166574622458
+    },
+    {
+      "user": "UE2",
+      "message": "Konnichiwa Sasuke, welcome to this sim",
+      "bytes": 38,
+      "bits": 304,
+      "qpsk_symbols": 152,
+      "ofdm_symbols": 3,
+      "zero_padding_resource_elements": 64,
+      "recovered_text": "Konnichiwa Sasuke, welcome to this sim",
+      "bit_errors": 0,
+      "ber": 0.0,
+      "rms_evm_percent": 17.434360808044406,
+      "measured_es_n0_db": 15.171879408694277
+    }
+  ]
+}
