@@ -58,8 +58,8 @@ class Animation:
         self.stage, self.progress, self.playing = 0, 0., autoplay
         self.last_time, self.seek_update, self.closed = time.monotonic(), False, False
         root.title('Hidden Leaf • OFDM signal journey')
-        root.geometry('1250x960')
-        root.minsize(1100, 900)
+        root.geometry('1300x1000')
+        root.minsize(1180, 940)
         root.configure(bg=BG)
         root.protocol('WM_DELETE_WINDOW', self.close)
         style = ttk.Style(root)
@@ -108,6 +108,10 @@ class Animation:
         stages.bind('<<ComboboxSelected>>', lambda _: self.choose(int(self.stage_name.get().split('.')[0])-1))
         self.seek = tk.DoubleVar(value=0)
         ttk.Scale(select_row, from_=0, to=100, variable=self.seek, command=self.scrub).pack(side='left', fill='x', expand=True, padx=15)
+        self.input_view=tk.StringVar(value='User layer')
+        input_box=ttk.Combobox(select_row,textvariable=self.input_view,values=['User layer']+[f'BS antenna {i}' for i in range(1,9)],state='readonly',width=15)
+        input_box.pack(side='left',padx=6)
+        input_box.bind('<<ComboboxSelected>>',lambda _:self.render())
         self.status = ttk.Label(select_row, text='', width=20)
         self.status.pack(side='right')
         from math_display import MathCanvas
@@ -116,6 +120,7 @@ class Animation:
         self.explanation = ttk.Label(root, text='', wraplength=1120, padding=(14, 0, 14, 10))
         self.explanation.pack(anchor='w')
         panes = ttk.Frame(root, padding=(14, 0, 14, 0))
+        self.panes=panes
         panes.pack(fill='both', expand=True)
         self.canvases = []
         for u in (1, 2):
@@ -123,6 +128,15 @@ class Animation:
             canvas.pack(side='left', fill='both', expand=True, padx=(0, 8) if u==1 else (0, 0))
             canvas.bind('<Configure>', lambda _: self.render())
             self.canvases.append(canvas)
+        self.fd_canvas=tk.Canvas(panes,bg=PANEL,highlightthickness=0,height=450,scrollregion=(0,0,1180,460))
+        self.fd_scroll=ttk.Scrollbar(panes,orient='vertical',command=self.fd_canvas.yview)
+        self.fd_canvas.configure(yscrollcommand=self.fd_scroll.set)
+        self.fd_canvas.bind('<Configure>',lambda _: self.render())
+        self.matrix_visible=False
+        self.inline_beams=tk.Canvas(root,bg=PANEL,highlightthickness=0,height=160)
+        self.inline_beams.pack(fill='x',padx=14,pady=(6,0))
+        self.inline_beams.bind('<Configure>',lambda _:self.render_beams())
+        self.beam_signature=None
         ttk.Label(root, text='Blue = I (real)   Orange = Q (imaginary)   •   Space: play/pause   ←/→: change block',
                   foreground=MUTED, padding=14).pack(anchor='w')
         root.bind('<space>', lambda _: self.toggle())
@@ -181,7 +195,7 @@ class Animation:
             kwargs['width'] = width
         c.create_text(x, y, text=text, **kwargs)
 
-    def waveform(self, c, data, count, xlabel, cp=False, reference=None, discrete=False):
+    def waveform(self, c, data, count, xlabel, cp=False, reference=None, discrete=False, signed=False):
         w, h = c.winfo_width(), c.winfo_height()
         left, right, top, bottom = 62, w-24, 115, h-85
         limit = max(.15, float(np.max(np.abs(np.r_[data.real, data.imag])))*1.12)
@@ -197,7 +211,7 @@ class Animation:
         for v in (-limit, 0, limit):
             self.text(c, left-7, py(v), f'{v:.2f}', MUTED, 10, 'e')
         for i in (0, (len(data)-1)//2, len(data)-1):
-            label = f'{i/FS*1e6:.2f}' if xlabel.startswith('Time') else str(i)
+            label = str(i-NFFT//2) if signed else (f'{i/FS*1e6:.2f}' if xlabel.startswith('Time') else str(i))
             self.text(c, px(i), bottom+8, label, MUTED, 10, 'n')
         self.text(c, (left+right)/2, bottom+32, xlabel, MUTED, 11, 'n')
         self.text(c, left, top-22, 'Normalized amplitude', MUTED, 10)
@@ -294,28 +308,27 @@ class Animation:
                 if active:
                     self.text(c,x+cell/2,y+height/2,str(data[i]),BG,10,'center')
             self.text(c,20,78,f'{count}/{len(data)} bits • read left to right, then next row',MUTED,11)
-        elif stage in (2,11,12):
+        elif stage==2:
+            data=a('qpsk');count=int(p*len(data))
+            self.text(c,20,78,f'{count}/{len(data)} QPSK input samples • discrete I/Q stems',MUTED,11)
+            self.waveform(c,data,count,'QPSK symbol index m (before OFDM mapping)',discrete=True)
+        elif stage in (11,12):
             key = {2:'qpsk',11:'rx_allocated',12:'received_qpsk'}[stage]
             data=a(key)
             count=int(p*len(data))
             self.text(c,20,78,f'{count}/{len(data)} symbols • green rings = ideal QPSK',MUTED,11)
             self.constellation(c,data,count)
         elif stage==3:
-            count=int(p*row['qpsk_symbols'])
-            grid=a('grid')
-            cell=(w-45)/72
-            spacing=max(48,(h-190)/3)
-            for symbol in range(3):
-                y=110+symbol*spacing
-                self.text(c,20,y-22,f'OFDM symbol {symbol}',MUTED,11)
-                for j,k in enumerate(BINS):
-                    active=symbol*72+j<count and grid[symbol,k]!=0
-                    x=20+j*cell
-                    c.create_rectangle(x,y,x+cell-1,y+28,fill=BLUE if active else '#334155',outline='')
-            tone=int(self.tone.get()) if hasattr(self,'tone') else int(TONES[0])
-            j=int(np.flatnonzero(TONES==tone)[0]);m=q*72+j
-            detail=f'QPSK m={m}: bits {2*m}–{2*m+1}' if m<row['qpsk_symbols'] else 'Padding: no payload bits'
-            self.text(c,20,h-88,f'Selected q={q}, tone={tone:+d}: {detail}\nBoth users share these REs as separate spatial layers.\n72 tones: −36…−1, +1…+36; DC + 55 guards zero.\nFinal-symbol grey cells are zero-amplitude padding.',MUTED,11,width=w-40)
+            source=self.input_view.get() if hasattr(self,'input_view') else 'User layer'
+            if source=='User layer':
+                grid=a('grid')[q]
+            else:
+                antenna_index=int(source.split()[-1])-1
+                if 'bs_grid' in self.arrays:grid=self.arrays['bs_grid'][antenna_index,q]
+                else:grid=self.arrays['precoder'][antenna_index] @ np.array([self.arrays[f'ue{v}_grid'][q] for v in (1,2)])
+            data=np.fft.fftshift(grid);count=int(p*NFFT)
+            self.text(c,20,78,f'{source} • OFDM symbol {q} • discrete IFFT input',MUTED,11)
+            self.waveform(c,data,count,'Signed subcarrier k (−64 to +63; fftshift display)',discrete=True,signed=True)
         elif stage==4:
             count=int(p*len(BINS))
             data=partial_ifft(a('grid')[q],count)
@@ -353,8 +366,34 @@ class Animation:
         self.seek_update=True
         self.seek.set(min(self.progress,1)*100)
         self.seek_update=False
-        for u,c in enumerate(self.canvases,1):
-            self.render_user(c,u)
+        if hasattr(self,'fd_canvas'):
+            if self.stage==4:
+                if not self.matrix_visible:
+                    for c in self.canvases:c.pack_forget()
+                    self.fd_scroll.pack(side='right',fill='y')
+                    self.fd_canvas.pack(side='left',fill='both',expand=True)
+                    self.matrix_visible=True
+                from fd_view import render_fd
+                render_fd(self,self.fd_canvas)
+            else:
+                if self.matrix_visible:
+                    self.fd_canvas.pack_forget()
+                    self.fd_scroll.pack_forget()
+                    for u,c in enumerate(self.canvases,1):
+                        c.pack(side='left',fill='both',expand=True,padx=(0,8) if u==1 else (0,0))
+                    self.matrix_visible=False
+                for u,c in enumerate(self.canvases,1):self.render_user(c,u)
+            self.render_beams()
+        else:
+            for u,c in enumerate(self.canvases,1):self.render_user(c,u)
+
+    def render_beams(self):
+        if not hasattr(self,'inline_beams') or not hasattr(self,'tone'):return
+        signature=(id(self.arrays),self.tone.get(),self.inline_beams.winfo_width(),self.inline_beams.winfo_height())
+        if signature!=getattr(self,'beam_signature',None):
+            from inline_beams import draw_inline_beams
+            draw_inline_beams(self)
+            self.beam_signature=signature
 
 
 def main():

@@ -1,3 +1,15 @@
+# Display update: stems, bracketed matrices and inline beams
+
+- Block 3 shows QPSK symbols as discrete I/Q stems.
+- Block 4 shows all 128 pre-IFFT frequency bins as stems, including DC, guards and padding. The x axis is signed, −64…63. Choose **User layer** or **BS antenna 1…8** to inspect either a user's mapped symbols or an actual precoded antenna IFFT input. Selecting a BS antenna shows that same antenna in both panels; it carries contributions from both users.
+- Block 5 uses the full-width signal area for bracketed W (8×2), s (2×1), x (8×1), and both H matrices (2×8). Noise and received vectors are also bracketed. Highlighting steps through H's eight Tx columns. Scroll the matrix area vertically on shorter windows.
+- Both transmit beam plots are now always inside the main animation window. Dashed vertical markers identify the sampled strongest-lobe direction for each user. A peak direction is not necessarily a physical UE location; arbitrary/multipath channels may have multiple lobes. Curves are independently normalized, not absolute gains.
+- Selecting a tone or applying channels/precoding updates the inline beams. SNR alone does not change ZF/MRT beam directions.
+
+For each antenna t, W creates x_t = W_t1 s_1 + W_t2 s_2. Its two columns are the users' beamforming weight vectors. ZF chooses them to suppress interference after the modeled receive combiner; it is not simply steering toward a single supplied angle.
+
+---
+
 # Three-path Rayleigh OFDM: channel first, receiver studies next
 
 ## What changed
