@@ -31,6 +31,7 @@ STAGES = [
     ('Recovered message', 'BER = incorrect bits / payload bits', 'Decode the bytes as UTF-8. The error counts are from this exact run.'),
 ]
 STAGES.insert(4, ('FD channel matrix', 'Y_u[k] = H_u[k] W[k] s[k] + N_u[k]', 'Equivalent FD preview: select a tone to inspect the actual time-convolved signal after CP removal and FFT.'))
+STAGES[12:12] = [('Receive combining', 'r_u = c_u^H Y_u', 'Multiply both antenna FFT outputs by the conjugate combiner weights, then add. The desired channel gain is still present.'), ('Channel equalization', 'z_u = r_u / d_uu', 'Divide by d_uu = c_u^H H_u w_u on this tone. Only after this correction do we select payload symbols and decide bits.')]
 BG, PANEL, INK, MUTED = '#101722', '#182333', '#e8eef7', '#aab9ca'
 BLUE, ORANGE, GREEN, RED = '#65baff', '#ffb569', '#83d6ac', '#ff7f8f'
 
@@ -275,7 +276,11 @@ class Animation:
             from fd_view import render_fd
             render_fd(self,c,u)
             return
-        stage = self.stage if self.stage < 4 else self.stage-1
+        if self.stage in (12,13):
+            from receiver_view import render_receiver
+            render_receiver(self,c,u,equalize=self.stage==13)
+            return
+        stage = self.stage if self.stage < 4 else (self.stage-1 if self.stage<12 else self.stage-3)
         view = self.receiver.get() if hasattr(self, 'receiver') else 'Combined / equalized'
         antenna = {'Rx1':0, 'Rx2':1}.get(view)
         if stage in (0,14,15):
@@ -335,7 +340,10 @@ class Animation:
             self.text(c,20,78,f'OFDM symbol {q} • {count}/72 tone contributions • dashed: final waveform',MUTED,11)
             self.waveform(c,data,NFFT,'Sample n within useful OFDM symbol',reference=a('ifft')[q])
         elif stage==10:
-            data=a('rx_grid')[q] if antenna is None else a('antenna_fft')[antenna,q]
+            if antenna is None:
+                antenna=0
+                view='Raw Rx1 (combining is next)'
+            data=a('antenna_fft')[antenna,q]
             count=int(p*NFFT)
             self.text(c,20,78,f'{view} • symbol {q} • {count}/128 discrete FFT bins',MUTED,11)
             self.waveform(c,data,count,'FFT bin k (unshifted order)',discrete=True)

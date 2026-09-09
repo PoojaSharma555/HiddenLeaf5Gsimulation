@@ -34,6 +34,8 @@ FORMULAS=[
     row('BER = ',frac('incorrect payload bits','total payload bits')),
 ]
 
+FORMULAS[12] = row('allocated = z[q, assigned tones]')
+FORMULAS[12:12] = [row(sub('r','u'),'[q,k] = ',both('c','H','u'),'[k]',sub('Y','u'),'[q,k]'), row(sub('z','u'),'[q,k] = ',frac(sub('r','u'),sub('d','uu')),'     ',sub('d','uu'),' = ',both('c','H','u'),sub('H','u'),sub('w','u'))]
 
 class MathCanvas(tk.Canvas):
     def __init__(self,parent,**kwargs):

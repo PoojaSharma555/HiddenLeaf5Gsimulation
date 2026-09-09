@@ -9,7 +9,7 @@ def write_block_outputs(output, report, arrays):
     def array_block(handle, title, formula, data):
         match = re.match(r"BLOCK (\d+) —", title)
         if rayleigh and match and int(match[1]) >= 5:
-            title = title.replace("BLOCK "+match[1], "BLOCK "+str(int(match[1])+1), 1)
+            title = title.replace("BLOCK "+match[1], "BLOCK "+str(int(match[1])+(3 if int(match[1])>=12 else 1)), 1)
         handle.write(f'\n{title}\nFormula: {formula}\n')
         handle.write(f'Shape: {data.shape}; dtype: {data.dtype}\n')
         handle.write(np.array2string(data, threshold=np.inf, precision=17,
@@ -54,6 +54,12 @@ def write_block_outputs(output, report, arrays):
                         'rx_useful = rx.reshape(number_of_symbols,NFFT+NCP)[:,NCP:]', arrays[prefix+'rx_no_cp'])
             array_block(handle, 'BLOCK 11 — Full receiver FFT grid Y[q,k]',
                         'Y[q,k] = sum_n rx_useful[q,n]*exp(-j*2*pi*k*n/NFFT) / sqrt(NFFT)', arrays[prefix+'rx_grid'])
+            if rayleigh:
+                handle.write('\nBLOCK 13 — Receive combining: r[q,k] = c[k]^H Y[q,k]\n')
+                array_block(handle, prefix+'combined_fd', 'Sum the two weighted antenna FFT outputs; not yet equalized', arrays[prefix+'combined_fd'])
+                handle.write('\nBLOCK 14 — Channel equalization: z[q,k] = r[q,k] / d_uu[k]\n')
+                array_block(handle, prefix+'desired_gain_fd', 'd_uu[k] = c[k]^H H[k] w_u[k]', arrays[prefix+'desired_gain_fd'])
+                array_block(handle, prefix+'equalized_fd', 'Combined value divided by desired effective gain', arrays[prefix+'rx_grid'])
             array_block(handle, 'BLOCK 12 — Allocated tones including noisy padding positions',
                         'allocated = Y[:,active_bins].reshape(-1)', arrays[prefix+'rx_allocated'])
             array_block(handle, 'BLOCK 13 — Payload symbols after discarding padding',
@@ -62,7 +68,7 @@ def write_block_outputs(output, report, arrays):
                         'b_hat[2*m] = (real(s_hat[m])<0); b_hat[2*m+1] = (imag(s_hat[m])<0)', arrays[prefix+'recovered_bits'])
             array_block(handle, 'BLOCK 15 — Recovered bytes',
                         'c_hat = packbits(b_hat), MSB first', arrays[prefix+'recovered_bytes'])
-            handle.write(f'\nBLOCK {17 if rayleigh else 16} — Decoded text and error measurements\n')
+            handle.write(f'\nBLOCK {19 if rayleigh else 16} — Decoded text and error measurements\n')
             handle.write('Formula: BER = incorrect_bits / payload_bits\n')
             handle.write('Formula: EVM = sqrt(sum(abs(s_hat-s)**2) / sum(abs(s)**2))\n')
             handle.write(json.dumps(row, indent=2)+'\n')

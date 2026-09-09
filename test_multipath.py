@@ -18,6 +18,11 @@ class MultipathTests(unittest.TestCase):
                 self.assertEqual(report['users'][u-1]['bit_errors'],0)
                 np.testing.assert_array_equal(a[f'ue{u}_antenna_noise'],0)
             self.assertEqual(a['path_taps'].shape,(2,3,2,8))
+            for u in (1,2):
+                np.testing.assert_allclose(a[f'ue{u}_combined_fd']/a[f'ue{u}_desired_gain_fd'][None,:],a[f'ue{u}_rx_grid'],atol=1e-13)
+                from receiver_view import receiver_values
+                vals=receiver_values(a,u,0,92)
+                np.testing.assert_allclose(vals[5],a[f'ue{u}_rx_grid'][0,92],atol=1e-13)
             np.testing.assert_allclose(np.linalg.norm(a['precoder_fd'],axis=1),1)
 
     def test_unequal_delays_and_noise_match_fd_equation(self):

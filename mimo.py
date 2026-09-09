@@ -101,6 +101,7 @@ def run_mimo(config=None, seed=555, output=Path('results')):
         bits=np.stack((symbols.real<0,symbols.imag<0),axis=1).astype(np.uint8).ravel()
         raw_no_cp=raw.reshape(2,3,NFFT+NCP)[:,:,NCP:]
         arrays.update({key+'rx':combined,key+'noise':combined_noise,key+'rx_no_cp':useful,
+                       key+'combined_fd':np.einsum('r,rqk->qk',c[u].conj(),np.fft.fft(raw_no_cp,axis=2,norm='ortho')),key+'desired_gain_fd':np.full(NFFT,coupling[u,u]),
                        key+'rx_grid':grid,key+'rx_allocated':allocated,key+'received_qpsk':symbols,
                        key+'recovered_bits':bits,key+'recovered_bytes':np.packbits(bits),
                        key+'antenna_rx':raw,key+'antenna_noise':noise,

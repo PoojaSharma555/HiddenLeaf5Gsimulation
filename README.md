@@ -1,3 +1,15 @@
+# Explicit receiver stages (19 animation blocks)
+
+After **Block 12: Receiver FFT**, the animation now shows:
+
+- **Block 13: Receive combining** — bracketed conjugate combiner weights multiply the two raw antenna FFT values. Each weighted contribution and their scalar sum r are displayed.
+- **Block 14: Channel equalization** — the selected tone's r, desired effective gain d = cᴴHw, and z = r/d appear separately. The display decomposes z into the transmitted symbol, residual other-user interference, and noise.
+- **Blocks 15–17** — select allocated tones, discard padding, then make hard bit decisions.
+
+The raw FFT stage never substitutes an already equalized output. If “Combined / equalized” is selected there, it shows raw Rx1 and labels this choice; combining and equalization have their own next stages. Select the OFDM symbol and Tone to inspect actual values for either UE. The full Rayleigh output report also includes the two new stages; the archive stores `ue1/ue2_combined_fd` and `ue1/ue2_desired_gain_fd`.
+
+---
+
 # Current animation: three-path Rayleigh fading and typeset equations
 
 Run `python animate.py --paused`. The default now applies three spatially correlated Rayleigh paths, with per-tone channel matrices and actual time-domain convolution. Use **Block 4: Frequency grid** and **Block 5: FD channel matrix** to inspect both users on any selected OFDM symbol/tone. Fractions, roots and exponents are drawn mathematically. The animation now has 17 blocks.

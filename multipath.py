@@ -86,6 +86,7 @@ def run_multipath(config,seed,output):
         n_time=np.fft.ifft(equalized_noise,axis=-1,norm='ortho')
         n_diag=np.concatenate([n_time[:,-NCP:],n_time],axis=-1).ravel()
         a.update({key+'rx':diagnostic,key+'noise':n_diag,key+'rx_no_cp':combined_useful,
+                  key+'combined_fd':np.einsum('kr,rqk->qk',cs[u].conj(),raw_fft),key+'desired_gain_fd':ds[:,u,u],
                   key+'rx_grid':grid,key+'rx_allocated':allocated,key+'received_qpsk':symbols,
                   key+'recovered_bits':bits,key+'recovered_bytes':np.packbits(bits),
                   key+'antenna_rx':raw,key+'antenna_noise':noise,key+'antenna_rx_no_cp':raw_no_cp,
