@@ -1,5 +1,5 @@
 {
-  "stage": "Joint 8-Tx / two 2-Rx users; applied flat channels, digital precoding and combining",
+  "stage": "Three-path sparse Rayleigh MIMO: causal time convolution and per-tone FD processing",
   "carrier_hz": 28000000000.0,
   "scs_hz": 60000.0,
   "fft_size": 128,
@@ -8,7 +8,7 @@
   "useful_symbol_us": 16.666666666666668,
   "cp_us": 1.3020833333333333,
   "frame_duration_us": 53.90625,
-  "snr_definition": "Reference per-layer Es / per-Rx-antenna noise variance; Es=1, total layer power=2. Actual post-combining SINR is reported separately.",
+  "snr_definition": "Reference Es=1 per layer divided by per-antenna noise variance. Noise can be disabled.",
   "requested_snr_db": 15.0,
   "complex_noise_variance": 0.03162277660168379,
   "seed": 555,
@@ -24,10 +24,11 @@
       "recovered_text": "Hello you are Naruto. welcome to this simulation",
       "bit_errors": 0,
       "ber": 0.0,
-      "rms_evm_percent": 3.5456119931898025,
+      "rms_evm_percent": 5.450794699119926,
       "measured_es_n0_db": null,
-      "evm_based_sinr_db": 29.006175845297083,
-      "full_load_sinr_db": 28.641898348749507
+      "evm_based_sinr_db": 25.270803502056314,
+      "full_load_sinr_db": 24.96882979446305,
+      "fd_identity_max_error": 1.4217791915866692e-15
     },
     {
       "user": "UE2",
@@ -40,60 +41,78 @@
       "recovered_text": "Konnichiwa Sasuke, welcome to this sim",
       "bit_errors": 0,
       "ber": 0.0,
-      "rms_evm_percent": 5.0999171876971605,
+      "rms_evm_percent": 9.116501895685508,
       "measured_es_n0_db": null,
-      "evm_based_sinr_db": 25.848737518112465,
-      "full_load_sinr_db": 25.777038155950656
+      "evm_based_sinr_db": 20.803435467712635,
+      "full_load_sinr_db": 20.754427035603094,
+      "fd_identity_max_error": 1.1322097734007353e-15
     }
   ],
-  "channel_model": "User-configurable, static flat fading; same H on every tone. Perfect CSI.",
-  "precoder_method": "ZF",
+  "channel_model": "Three spatially correlated Gaussian ray gains per UE; constant within frame; no LOS or Doppler.",
   "channel_config": {
     "snr_db": 15.0,
     "precoder": "ZF",
     "H1": [
       [
-        "(1+0i)",
-        "(2+0i)",
-        "1i",
-        "(1+0i)",
-        "(-1+0i)",
-        "-1i",
-        "-1i",
-        "1i"
+        1,
+        2,
+        "i",
+        1,
+        -1,
+        "-i",
+        "-i",
+        "i"
       ],
       [
-        "(1+0i)",
-        "(2+0i)",
-        "(1+0i)",
-        "(2+0i)",
-        "1i",
+        1,
+        2,
+        1,
+        2,
+        "i",
         "2i",
-        "1i",
+        "i",
         "2i"
       ]
     ],
     "H2": [
       [
-        "(1+0i)",
-        "-1i",
-        "(-1+0i)",
-        "1i",
-        "(1+0i)",
-        "-1i",
-        "(-1+0i)",
-        "1i"
+        1,
+        "-i",
+        -1,
+        "i",
+        1,
+        "-i",
+        -1,
+        "i"
       ],
       [
-        "(0.7+0.2i)",
-        "(-0.2-0.7i)",
-        "(-0.7-0.2i)",
-        "(0.2+0.7i)",
-        "(0.7+0.2i)",
-        "(-0.2-0.7i)",
-        "(-0.7-0.2i)",
-        "(0.2+0.7i)"
+        "0.7+0.2i",
+        "-0.2-0.7i",
+        "-0.7-0.2i",
+        "0.2+0.7i",
+        "0.7+0.2i",
+        "-0.2-0.7i",
+        "-0.7-0.2i",
+        "0.2+0.7i"
       ]
-    ]
-  }
+    ],
+    "channel_model": "rayleigh",
+    "channel_seed": 556,
+    "delays_samples": [
+      0,
+      1,
+      3
+    ],
+    "powers_db": [
+      0,
+      -5,
+      -10
+    ],
+    "noise_enabled": true
+  },
+  "precoder_method": "ZF",
+  "sinr_summary": "Median full-load SINR across allocated tones, dB; noise-free values use numerical floor.",
+  "cp_valid": true,
+  "maximum_delay_samples": 3,
+  "diagnostic_rx_note": "Combined time waveform is reconstructed AFTER per-tone equalization; CP is synthetic."
 }

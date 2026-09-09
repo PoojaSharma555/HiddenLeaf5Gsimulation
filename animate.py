@@ -30,6 +30,7 @@ STAGES = [
     ('Recovered bytes', 'c_hat = packbits(b_hat), most significant bit first', 'Group each set of eight recovered bits into a byte.'),
     ('Recovered message', 'BER = incorrect bits / payload bits', 'Decode the bytes as UTF-8. The error counts are from this exact run.'),
 ]
+STAGES.insert(4, ('FD channel matrix', 'Y_u[k] = H_u[k] W[k] s[k] + N_u[k]', 'Equivalent FD preview: select a tone to inspect the actual time-convolved signal after CP removal and FFT.'))
 BG, PANEL, INK, MUTED = '#101722', '#182333', '#e8eef7', '#aab9ca'
 BLUE, ORANGE, GREEN, RED = '#65baff', '#ffb569', '#83d6ac', '#ff7f8f'
 
@@ -37,7 +38,7 @@ BLUE, ORANGE, GREEN, RED = '#65baff', '#ffb569', '#83d6ac', '#ff7f8f'
 def prepare(output, snr_db=15., seed=555, config=None):
     """Generate and load one consistent run, using the same processing as simulate.py."""
     from mimo import run_mimo
-    return run_mimo({**(config or {}), 'snr_db': snr_db}, seed, output)
+    return run_mimo({'channel_model':'rayleigh', **(config or {}), 'snr_db': snr_db}, seed, output)
 
 
 def partial_ifft(grid_row, count):
@@ -57,8 +58,8 @@ class Animation:
         self.stage, self.progress, self.playing = 0, 0., autoplay
         self.last_time, self.seek_update, self.closed = time.monotonic(), False, False
         root.title('Hidden Leaf • OFDM signal journey')
-        root.geometry('1220x850')
-        root.minsize(1100, 800)
+        root.geometry('1250x960')
+        root.minsize(1100, 900)
         root.configure(bg=BG)
         root.protocol('WM_DELETE_WINDOW', self.close)
         style = ttk.Style(root)
@@ -70,7 +71,7 @@ class Animation:
         top.pack(fill='x')
         ttk.Label(top, text='HIDDEN LEAF  /  SIGNAL JOURNEY', font=('Helvetica', 18, 'bold')).pack(anchor='w')
         ttk.Label(top, text=f'Joint MU-MIMO • 8 Tx / 2 Rx per user • QPSK • 60 kHz SCS', foreground=MUTED).pack(anchor='w', pady=4)
-        ttk.Label(top, text='Slowed replay • 53.906 µs frame • flat 2×8 channels • perfect CSI • digital precoding', foreground=MUTED).pack(anchor='w')
+        ttk.Label(top, text='Slowed replay • 53.906 µs frame • 3-path Rayleigh default • perfect CSI baseline receiver', foreground=MUTED).pack(anchor='w')
         from beam_ui import install_controls
         install_controls(self, top)
         controls = ttk.Frame(root, padding=(14, 0, 14, 8))
@@ -88,6 +89,16 @@ class Animation:
         symbol_box = ttk.Combobox(controls, textvariable=self.symbol, values=['0', '1', '2'], state='readonly', width=4)
         symbol_box.pack(side='left')
         symbol_box.bind('<<ComboboxSelected>>', lambda _: self.render())
+        ttk.Label(controls,text='Tone').pack(side='left',padx=(10,4))
+        self.tone=tk.StringVar(value=str(TONES[0]))
+        tone_box=ttk.Combobox(controls,textvariable=self.tone,values=[str(t) for t in TONES],state='readonly',width=5)
+        tone_box.pack(side='left')
+        def tone_change(_):
+            self.render()
+            if self.beam_window is not None and self.beam_window.winfo_exists():
+                from beam_ui import draw_beams
+                draw_beams(self)
+        tone_box.bind('<<ComboboxSelected>>',tone_change)
         select_row = ttk.Frame(root, padding=(14, 0, 14, 8))
         select_row.pack(fill='x')
         self.stage_name = tk.StringVar(value='1. '+STAGES[0][0])
@@ -99,8 +110,9 @@ class Animation:
         ttk.Scale(select_row, from_=0, to=100, variable=self.seek, command=self.scrub).pack(side='left', fill='x', expand=True, padx=15)
         self.status = ttk.Label(select_row, text='', width=20)
         self.status.pack(side='right')
-        self.formula = ttk.Label(root, text='', font=('Helvetica', 15), padding=(14, 8))
-        self.formula.pack(anchor='w')
+        from math_display import MathCanvas
+        self.formula = MathCanvas(root)
+        self.formula.pack(fill='x')
         self.explanation = ttk.Label(root, text='', wraplength=1120, padding=(14, 0, 14, 10))
         self.explanation.pack(anchor='w')
         panes = ttk.Frame(root, padding=(14, 0, 14, 0))
@@ -124,7 +136,7 @@ class Animation:
         self.root.destroy()
 
     def toggle(self):
-        if self.stage == 15 and self.progress >= 1 and not self.playing:
+        if self.stage == len(STAGES)-1 and self.progress >= 1 and not self.playing:
             self.stage, self.progress = 0, 0.
         self.playing = not self.playing
         self.last_time = time.monotonic()
@@ -140,7 +152,7 @@ class Animation:
         self.render()
 
     def step(self, delta):
-        self.choose(max(0, min(15, self.stage+delta)))
+        self.choose(max(0, min(len(STAGES)-1, self.stage+delta)))
 
     def scrub(self, value):
         if not self.seek_update:
@@ -155,7 +167,7 @@ class Animation:
             self.progress += min(now-self.last_time, .25)*float(self.speed.get().rstrip('×'))/6
             # A brief hold at completion lets the finished block be inspected.
             if self.progress >= 1.18:
-                if self.stage < 15:
+                if self.stage < len(STAGES)-1:
                     self.stage, self.progress = self.stage+1, 0.
                 else:
                     self.progress, self.playing = 1., False
@@ -245,7 +257,11 @@ class Animation:
         q = int(self.symbol.get())
         self.text(c,20,16,f'UE{u}  /  '+('NARUTO' if u==1 else 'SASUKE'),GREEN,15)
         self.text(c,20,45,f'{row["bits"]} bits → {row["qpsk_symbols"]} QPSK symbols → 3 OFDM symbols',MUTED,11)
-        stage = self.stage
+        if self.stage == 4:
+            from fd_view import render_fd
+            render_fd(self,c,u)
+            return
+        stage = self.stage if self.stage < 4 else self.stage-1
         view = self.receiver.get() if hasattr(self, 'receiver') else 'Combined / equalized'
         antenna = {'Rx1':0, 'Rx2':1}.get(view)
         if stage in (0,14,15):
@@ -296,7 +312,10 @@ class Animation:
                     active=symbol*72+j<count and grid[symbol,k]!=0
                     x=20+j*cell
                     c.create_rectangle(x,y,x+cell-1,y+28,fill=BLUE if active else '#334155',outline='')
-            self.text(c,20,h-72,'72 allocated tones: −36…−1, +1…+36\nDC and 55 outer guard bins are zero.\nFinal-symbol padding remains grey (zero amplitude).',MUTED,11,width=w-40)
+            tone=int(self.tone.get()) if hasattr(self,'tone') else int(TONES[0])
+            j=int(np.flatnonzero(TONES==tone)[0]);m=q*72+j
+            detail=f'QPSK m={m}: bits {2*m}–{2*m+1}' if m<row['qpsk_symbols'] else 'Padding: no payload bits'
+            self.text(c,20,h-88,f'Selected q={q}, tone={tone:+d}: {detail}\nBoth users share these REs as separate spatial layers.\n72 tones: −36…−1, +1…+36; DC + 55 guards zero.\nFinal-symbol grey cells are zero-amplitude padding.',MUTED,11,width=w-40)
         elif stage==4:
             count=int(p*len(BINS))
             data=partial_ifft(a('grid')[q],count)
@@ -325,9 +344,11 @@ class Animation:
             return
         title,formula,explanation=STAGES[self.stage]
         self.stage_name.set(f'{self.stage+1}. {title}')
-        self.formula.configure(text=formula)
+        self.formula.set_stage(self.stage)
+        if 'precoder_fd' in self.arrays and self.stage in (8,9,10) and self.receiver.get() == 'Combined / equalized':
+            explanation += ' Combined time view is a reconstructed post-equalizer diagnostic; use Rx1/Rx2 for physical received samples.'
         self.explanation.configure(text=explanation)
-        self.status.configure(text=f'Block {self.stage+1}/16 • {min(self.progress,1):.0%}')
+        self.status.configure(text=f'Block {self.stage+1}/{len(STAGES)} • {min(self.progress,1):.0%}')
         self.play_button.configure(text='Pause' if self.playing else 'Play')
         self.seek_update=True
         self.seek.set(min(self.progress,1)*100)
@@ -353,7 +374,7 @@ def main():
         for u in (1,2):
             for q in range(3):
                 np.testing.assert_allclose(partial_ifft(arrays[f'ue{u}_grid'][q],72),arrays[f'ue{u}_ifft'][q],atol=3e-14)
-        print('Animation data verified: both users, all 3 OFDM symbols, all 16 blocks available.')
+        print('Animation data verified: both users, all 3 OFDM symbols, all animation blocks available.')
         return
     try:
         import tkinter as tk

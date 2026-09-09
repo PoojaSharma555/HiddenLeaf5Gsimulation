@@ -1,3 +1,11 @@
+# Current animation: three-path Rayleigh fading and typeset equations
+
+Run `python animate.py --paused`. The default now applies three spatially correlated Rayleigh paths, with per-tone channel matrices and actual time-domain convolution. Use **Block 4: Frequency grid** and **Block 5: FD channel matrix** to inspect both users on any selected OFDM symbol/tone. Fractions, roots and exponents are drawn mathematically. The animation now has 17 blocks.
+
+Read [RAYLEIGH_GUIDE.md](RAYLEIGH_GUIDE.md) for the current model and exact payload allocation. **Channel = flat** restores the previous manually entered H1/H2 model. The sections below document earlier milestones.
+
+---
+
 # Current version: configurable MU-MIMO animation
 
 Run `python animate.py --paused`. Use **Reference SNR**, **Apply SNR / precoder**, **Receiver view**, and **Channels & beams**. The animation now applies two configurable 2×8 channels and an 8×2 digital precoder. Your supplied matrix is the default H1. Read [MIMO_GUIDE.md](MIMO_GUIDE.md) for the current equations, controls, power conventions, and limitations.

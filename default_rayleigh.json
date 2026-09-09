@@ -1,0 +1,17 @@
+{
+  "channel_model": "rayleigh",
+  "snr_db": 15,
+  "precoder": "ZF",
+  "noise_enabled": true,
+  "channel_seed": 556,
+  "delays_samples": [
+    0,
+    1,
+    3
+  ],
+  "powers_db": [
+    0,
+    -5,
+    -10
+  ]
+}

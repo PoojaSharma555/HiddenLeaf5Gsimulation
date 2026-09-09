@@ -1,10 +1,15 @@
 """Write complete, untruncated block outputs for the teaching simulation."""
 import json
+import re
 import numpy as np
 
 
 def write_block_outputs(output, report, arrays):
+    rayleigh = report.get("channel_config",{}).get("channel_model") == "rayleigh"
     def array_block(handle, title, formula, data):
+        match = re.match(r"BLOCK (\d+) —", title)
+        if rayleigh and match and int(match[1]) >= 5:
+            title = title.replace("BLOCK "+match[1], "BLOCK "+str(int(match[1])+1), 1)
         handle.write(f'\n{title}\nFormula: {formula}\n')
         handle.write(f'Shape: {data.shape}; dtype: {data.dtype}\n')
         handle.write(np.array2string(data, threshold=np.inf, precision=17,
@@ -31,6 +36,10 @@ def write_block_outputs(output, report, arrays):
                         's[m] = ((1-2*b[2*m]) + j*(1-2*b[2*m+1])) / sqrt(2)', arrays[prefix+'qpsk'])
             array_block(handle, 'BLOCK 4 — Frequency grid X[q,k], including every null bin',
                         'X[q, signed_tone mod NFFT] = payload symbol; otherwise 0', arrays[prefix+'grid'])
+            if rayleigh:
+                handle.write('\nBLOCK 5 — FD channel matrix: Y[q,k] = H[k] W[k] s[q,k] + N[q,k]\n')
+                for name in [f'H{u}', 'precoder_fd', 'bs_grid', prefix+'predicted_fd', prefix+'noise_fd', prefix+'antenna_fft']:
+                    array_block(handle, name, 'Time convolution verified against per-tone matrix multiplication', arrays[name])
             array_block(handle, 'BLOCK 5 — COMPLEX BASEBAND OFDM WAVEFORM BEFORE CP, x[q,n]',
                         'x[q,n] = sum_k X[q,k]*exp(j*2*pi*k*n/NFFT) / sqrt(NFFT)', arrays[prefix+'ifft'])
             array_block(handle, 'BLOCK 6 — CP blocks x_CP[q,n]',
@@ -53,7 +62,7 @@ def write_block_outputs(output, report, arrays):
                         'b_hat[2*m] = (real(s_hat[m])<0); b_hat[2*m+1] = (imag(s_hat[m])<0)', arrays[prefix+'recovered_bits'])
             array_block(handle, 'BLOCK 15 — Recovered bytes',
                         'c_hat = packbits(b_hat), MSB first', arrays[prefix+'recovered_bytes'])
-            handle.write('\nBLOCK 16 — Decoded text and error measurements\n')
+            handle.write(f'\nBLOCK {17 if rayleigh else 16} — Decoded text and error measurements\n')
             handle.write('Formula: BER = incorrect_bits / payload_bits\n')
             handle.write('Formula: EVM = sqrt(sum(abs(s_hat-s)**2) / sum(abs(s)**2))\n')
             handle.write(json.dumps(row, indent=2)+'\n')
@@ -77,5 +86,8 @@ def write_block_outputs(output, report, arrays):
                                        f'{z.real:.17g}\t{z.imag:.17g}\t{z.real:.17g}{z.imag:+.17g}j\n')
         handle.write('\nAPPENDIX — APPLIED MIMO ARRAYS\n' if mimo else '\nAPPENDIX — SPARSE CHANNEL PREVIEW ONLY; NOT PART OF PAYLOAD LOOPBACK\n')
         names = ['active_bins','H1','H2','precoder','combiners','effective_coupling','bs_antenna_tx'] + [f'ue{u}_{key}' for u in (1,2) for key in ('antenna_rx','antenna_noise','antenna_fft')] if mimo else ['active_bins','path_delays_s','path_gains','H1','H2','H_beamspace']
+        if report.get('channel_config',{}).get('channel_model') == 'rayleigh':
+            handle.write('\nRAYLEIGH: combined time outputs are post-equalizer diagnostics; CP is reconstructed. Physical processing uses raw antenna arrays, CP removal, FFT, then per-tone combining.\n')
+            names += ['path_taps','path_gains','path_delays_s','precoder_fd','combiners_fd','coupling_fd','bs_grid'] + [f'ue{u}_{key}' for u in (1,2) for key in ('clean_fd','predicted_fd','noise_fd')]
         for name in names:
             array_block(handle, name, 'See MIMO_GUIDE.md for applied MIMO equations' if mimo else 'See README section 10 for geometric channel and DFT beamspace equations', arrays[name])

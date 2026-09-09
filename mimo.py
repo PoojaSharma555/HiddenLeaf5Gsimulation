@@ -71,6 +71,9 @@ def run_mimo(config=None, seed=555, output=Path('results')):
     from simulate import run, NFFT, NCP, BINS
     from block_output import write_block_outputs
     config = {**defaults(), **(config or {})}
+    if config.get('channel_model', 'flat') == 'rayleigh':
+        from multipath import run_multipath
+        return run_multipath(config, seed, output)
     snr = float(config['snr_db'])
     if not np.isfinite(snr) or not -40 <= snr <= 100:
         raise ValueError('SNR must be a finite value between -40 and 100 dB.')
@@ -83,7 +86,7 @@ def run_mimo(config=None, seed=555, output=Path('results')):
         arrays={k:data[k].copy() for k in data.files}
     streams=np.array([arrays[f'ue{u}_tx'] for u in (1,2)])
     bs_tx=w @ streams
-    noise_var=10**(-snr/10)
+    noise_var=10**(-snr/10) if config.get('noise_enabled',True) else 0.
     rng=np.random.default_rng(seed+10)
     for u in range(2):
         key=f'ue{u+1}_'
@@ -105,7 +108,7 @@ def run_mimo(config=None, seed=555, output=Path('results')):
                        key+'antenna_fft':np.fft.fft(raw_no_cp,axis=2,norm='ortho')})
         errors=int(np.count_nonzero(bits!=arrays[key+'bits']))
         evm=float(np.sqrt(np.mean(abs(symbols-arrays[key+'qpsk'])**2)))
-        sinr=abs(coupling[u,u])**2/(abs(coupling[u,1-u])**2+noise_var)
+        sinr=abs(coupling[u,u])**2/max(abs(coupling[u,1-u])**2+noise_var,1e-30)
         report['users'][u].update(recovered_text=np.packbits(bits).tobytes().decode('utf-8',errors='replace'),
              bit_errors=errors,ber=errors/len(bits),rms_evm_percent=100*evm,
              measured_es_n0_db=None,evm_based_sinr_db=float(-20*np.log10(max(evm,1e-30))),
@@ -118,6 +121,7 @@ def run_mimo(config=None, seed=555, output=Path('results')):
     for key in ('H_beamspace','path_gains','path_delays_s'):
         arrays.pop(key,None)
     config.update(snr_db=snr,H1=serial_matrix(channels[0]),H2=serial_matrix(channels[1]))
+    report['complex_noise_variance']=noise_var
     report.update(stage='Joint 8-Tx / two 2-Rx users; applied flat channels, digital precoding and combining',
                   snr_definition='Reference per-layer Es / per-Rx-antenna noise variance; Es=1, total layer power=2. Actual post-combining SINR is reported separately.',
                   channel_model='User-configurable, static flat fading; same H on every tone. Perfect CSI.',
